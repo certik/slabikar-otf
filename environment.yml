@@ -1,0 +1,11 @@
+name: fonts
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip
+  - tectonic=0.9.0
+  - numpy=1.23.2
+  - pillow=9.2.0
+  - pip:
+    - afdko==3.9.1
