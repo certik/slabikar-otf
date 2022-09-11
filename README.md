@@ -7,9 +7,10 @@ http://petr.olsak.net/ftp/olsak/slabikar/
 The `Slabikar.otf` font works in LaTeX, HTML, system-wide and it should work on
 any system and program that works with OTF fonts.
 
-Online demo:
+# Examples
 
-https://certik.github.io/slabikar-otf/
+* LaTeX: [example.tex](./examples/tex/example.tex) ([example.pdf](./examples/tex/example.pdf))
+* Online demo: https://certik.github.io/slabikar-otf/
 
 # License
 
