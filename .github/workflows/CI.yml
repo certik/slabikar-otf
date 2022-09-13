@@ -13,13 +13,10 @@ on:
 
 jobs:
   Build:
-    name: Slabikar CI (${{ matrix.python-version }}, ${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+    name: Tectonic
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix:
-        os: ["ubuntu-latest"]
-        python-version: ["3.10"]
     steps:
       - uses: actions/checkout@v2
         with:
@@ -36,14 +33,14 @@ jobs:
         with:
           environment-file: environment.yml
           extra-specs: |
-            python=${{ matrix.python-version }}
+            python=3.10
 
       - uses: hendrikmuhs/ccache-action@main
         with:
           variant: sccache
-          key: ${{ github.job }}-${{ matrix.os }}
+          key: ${{ github.job }}
 
-      - name: Build (Linux / macOS)
+      - name: Build
         shell: bash -l {0}
         run: |
             ./build.sh
