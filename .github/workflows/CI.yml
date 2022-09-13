@@ -45,6 +45,18 @@ jobs:
         run: |
             ./build.sh
 
+      - name: Archive Slabikar.otf
+        uses: actions/upload-artifact@v3
+        with:
+          name: Slabikar.otf
+          path: Slabikar.otf
+
+      - name: Archive example.pdf
+        uses: actions/upload-artifact@v3
+        with:
+          name: example_tectonic.pdf
+          path: examples/tex/example.pdf
+
   xelatex:
     name: xelatex
     runs-on: ubuntu-latest
@@ -83,3 +95,9 @@ jobs:
         run: |
             cd examples/tex
             xelatex example.tex
+
+      - name: Archive example.pdf
+        uses: actions/upload-artifact@v3
+        with:
+          name: example_xelatex.pdf
+          path: examples/tex/example.pdf
