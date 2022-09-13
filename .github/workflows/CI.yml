@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+
+
+jobs:
+  Build:
+    name: Slabikar CI (${{ matrix.python-version }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ["ubuntu-latest"]
+        python-version: ["3.10"]
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Install Inkscape in Ubuntu
+        run: |
+            sudo add-apt-repository ppa:inkscape.dev/stable
+            sudo apt update
+            sudo apt -y install inkscape
+            sudo touch /var/lib/cloud/instance/locale-check.skip
+
+      - uses: mamba-org/provision-with-micromamba@main
+        with:
+          environment-file: environment.yml
+          extra-specs: |
+            python=${{ matrix.python-version }}
+
+      - uses: hendrikmuhs/ccache-action@main
+        with:
+          variant: sccache
+          key: ${{ github.job }}-${{ matrix.os }}
+
+      - name: Build (Linux / macOS)
+        shell: bash -l {0}
+        run: |
+            ./build.sh

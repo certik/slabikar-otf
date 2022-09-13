@@ -2117,6 +2117,7 @@ def fix_name(x):
 
 letters = [fix_name(x) for x in glyphs]
 
+current_dir = os.path.dirname(os.path.abspath(__file__))
 glyphs_dir = "../font.ufo/glyphs"
 run(f"mkdir -p {glyphs_dir}")
 s = ""
