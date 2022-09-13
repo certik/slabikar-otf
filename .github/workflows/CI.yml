@@ -44,3 +44,42 @@ jobs:
         shell: bash -l {0}
         run: |
             ./build.sh
+
+  xelatex:
+    name: xelatex
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Install Inkscape in Ubuntu
+        run: |
+            sudo add-apt-repository ppa:inkscape.dev/stable
+            sudo apt update
+            sudo apt -y install inkscape texlive-latex-extra texlive-xetex
+            sudo touch /var/lib/cloud/instance/locale-check.skip
+
+      - uses: mamba-org/provision-with-micromamba@main
+        with:
+          environment-file: environment.yml
+          extra-specs: |
+            python=3.10
+
+      - uses: hendrikmuhs/ccache-action@main
+        with:
+          variant: sccache
+          key: ${{ github.job }}
+
+      - name: Build
+        shell: bash -l {0}
+        run: |
+            ./build.sh
+
+      - name: LaTeX
+        shell: bash -l {0}
+        run: |
+            cd examples/tex
+            xelatex example.tex
