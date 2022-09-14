@@ -45,17 +45,15 @@ jobs:
         run: |
             ./build.sh
 
-      - name: Archive Slabikar.otf
+      - name: Archive artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: Slabikar.otf
-          path: Slabikar.otf
-
-      - name: Archive example.pdf
-        uses: actions/upload-artifact@v3
-        with:
-          name: example_tectonic.pdf
-          path: examples/tex/example.pdf
+          name: results
+          path: |
+            Slabikar.otf
+            examples/tex/example.pdf
+            examples/tex/example1.png
+            examples/tex/example2.png
 
   xelatex:
     name: xelatex
