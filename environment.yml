@@ -7,5 +7,6 @@ dependencies:
   - tectonic=0.9.0
   - numpy=1.23.2
   - pillow=9.2.0
+  - ghostscript=9.54.0
   - pip:
     - afdko==3.9.1
