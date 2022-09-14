@@ -69,7 +69,7 @@ jobs:
         run: |
             sudo add-apt-repository ppa:inkscape.dev/stable
             sudo apt update
-            sudo apt -y install inkscape texlive-latex-extra texlive-xetex
+            sudo apt -y install inkscape texlive-latex-extra texlive-luatex
             sudo touch /var/lib/cloud/instance/locale-check.skip
 
       - uses: mamba-org/provision-with-micromamba@main
@@ -92,7 +92,7 @@ jobs:
         shell: bash -l {0}
         run: |
             cd examples/tex
-            xelatex example.tex
+            lualatex example.tex
 
       - name: Archive example.pdf
         uses: actions/upload-artifact@v3
