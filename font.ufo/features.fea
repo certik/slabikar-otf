@@ -1,10 +1,7 @@
 languagesystem DFLT dflt;
 languagesystem latn dflt;
 
-@LETTER = [a-z];
-
 lookup LETTER_END {
-#    ignore substitute a' @LETTER;
     substitute a' by a end;
 } LETTER_END;
 
