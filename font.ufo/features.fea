@@ -374,6 +374,6 @@ lookup LETTER_END {
     substitute Zcaron' by Zcaron end;
 } LETTER_END;
 
-feature liga {
-  substitute @LETTER0' lookup LETTER_END lookup LETTER_BEGIN;
-} liga;
+#feature liga {
+#  substitute @LETTER0' lookup LETTER_END lookup LETTER_BEGIN;
+#} liga;
