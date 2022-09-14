@@ -1,10 +1,6 @@
 languagesystem DFLT dflt;
 languagesystem latn dflt;
 
-lookup LETTER_END {
-    substitute a' by a end;
-} LETTER_END;
-
 feature liga {
-  substitute a' lookup LETTER_END;
+  substitute a' by a end;
 } liga;
