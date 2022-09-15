@@ -46,6 +46,7 @@ jobs:
             ./build.sh
 
       - name: Archive artifacts
+        if: always()
         uses: actions/upload-artifact@v3
         with:
           name: results
@@ -92,9 +93,11 @@ jobs:
         shell: bash -l {0}
         run: |
             cd examples/tex
+            rm example.pdf
             xelatex example.tex
 
       - name: Archive example.pdf
+        if: always()
         uses: actions/upload-artifact@v3
         with:
           name: example_xelatex.pdf
