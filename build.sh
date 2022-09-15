@@ -25,3 +25,5 @@ gs \
     -dUseCropBox \
     -sOutputFile=example%d.png \
     example.pdf
+
+python compare.py
