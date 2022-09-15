@@ -55,6 +55,8 @@ jobs:
             examples/tex/example.pdf
             examples/tex/example1.png
             examples/tex/example2.png
+            examples/tex/diff1.png
+            examples/tex/diff2.png
 
   xelatex:
     name: xelatex
