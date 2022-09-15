@@ -150,6 +150,9 @@ languagesystem latn dflt;
 @BCONN_LETTERS = [m n ncaron v w y yacute];
 @SCONN_LETTERS = [@BCONN_LETTERS t tcaron z zcaron];
 
+# All lower case letters and variations and internal connections
+@LCLETTERS = [@LETTER_LC @LETTER1 @CONN];
+
 
 lookup LETTER_BEGIN {
 # beginning of the word
@@ -485,6 +488,39 @@ feature kern {
   position ocircumflexnarrow' <80 0 80 0>;
   ignore position @LETTER q';
   position q' <80 0 80 0>;
+
+  ignore position B' @LCLETTERS;
+  position B' <0 0 80 0>;
+  ignore position D' @LCLETTERS;
+  position D' <0 0 80 0>;
+  ignore position Dcaron' @LCLETTERS;
+  position Dcaron' <0 0 80 0>;
+  ignore position F' @LCLETTERS;
+  position F' <0 0 240 0>;
+  ignore position I' @LCLETTERS;
+  position I' <0 0 40 0>;
+  ignore position Iacute' @LCLETTERS;
+  position Iacute' <0 0 40 0>;
+  ignore position O' @LCLETTERS;
+  position O' <0 0 160 0>;
+  ignore position Oacute' @LCLETTERS;
+  position Oacute' <0 0 160 0>;
+  ignore position Ocircumflex' @LCLETTERS;
+  position Ocircumflex' <0 0 160 0>;
+  ignore position P' @LCLETTERS;
+  position P' <0 0 280 0>;
+  ignore position S' @LCLETTERS;
+  position S' <0 0 160 0>;
+  ignore position Scaron' @LCLETTERS;
+  position Scaron' <0 0 160 0>;
+  ignore position T' @LCLETTERS;
+  position T' <0 0 280 0>;
+  ignore position Tcaron' @LCLETTERS;
+  position Tcaron' <0 0 280 0>;
+  ignore position V' @LCLETTERS;
+  position V' <0 0 240 0>;
+  ignore position W' @LCLETTERS;
+  position W' <0 0 240 0>;
 } kern;
 
 feature liga {
