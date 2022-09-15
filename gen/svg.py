@@ -47,6 +47,7 @@ stroke_width = 0.4 * scale
 # 1 .. original
 # 2 .. U.S.
 z_style = 1
+t_style = 1
 
 
 import os
@@ -762,23 +763,41 @@ add_char("scarondepth", 2, [
     shift(hacek, (0,0))
 ])
 
-#beginchar("t", 9u#, 14u#, 0);
-#  z0=(0,6); z1=(4.5,14); z2=(1,0); z3=(9,6);
-#  z10=(0,1);
-#  draw z0{sklon2}..tension2..{-sklon1}z1--z2{-sklon1}..
-#       z10..z2{right}..z3{sklon2};
-#endchar;
-z0=(0,6); z1=(4.5,14); z2=(1,0); z3=(9,6);
-z10=(0,1);z10t=(-5,-6)
-add_char("t", 9, [
-    _draw2([(z0,sklon2),2,(z1,-sklon1),None,(z2,-sklon1),1,
-        (z10,z10t),1,(z2,right),1,(z3,sklon2)])
-])
-add_char("tcaron", 9, [
-    _draw2([(z0,sklon2),2,(z1,-sklon1),None,(z2,-sklon1),1,
-        (z10,z10t),1,(z2,right),1,(z3,sklon2)]),
-    shift(hacek, (5.5,2))
-])
+if t_style == 1:
+    #beginchar("t", 9u#, 14u#, 0);
+    #  z0=(0,6); z1=(4.5,14); z2=(1,0); z3=(9,6);
+    #  z10=(0,1);
+    #  draw z0{sklon2}..tension2..{-sklon1}z1--z2{-sklon1}..
+    #       z10..z2{right}..z3{sklon2};
+    #endchar;
+    z0=(0,6); z1=(4.5,14); z2=(1,0); z3=(9,6);
+    z10=(0,1);z10t=(-5,-6)
+    add_char("t", 9, [
+        _draw2([(z0,sklon2),2,(z1,-sklon1),None,(z2,-sklon1),1,
+            (z10,z10t),1,(z2,right),1,(z3,sklon2)])
+    ])
+    add_char("tcaron", 9, [
+        _draw2([(z0,sklon2),2,(z1,-sklon1),None,(z2,-sklon1),1,
+            (z10,z10t),1,(z2,right),1,(z3,sklon2)]),
+        shift(hacek, (5.5,2))
+    ])
+elif t_style == 2:
+    z0=(0,6); z1=(4.5,14); z2=(1.25,1);
+    letter = _draw2([(z0,sklon2),2,(z1,-sklon1),None,(z2,-sklon1)])
+    z3=(-2.5,7); z4=(9.25+z3[0], z3[1])
+    add_char("t", 9.25, [
+        shift(letter, (0,0)),
+        shift(dotah, (z2[0],0)),
+        _draw2([(z3,None),None,(z4,None)]),
+    ])
+    add_char("tcaron", 9.25, [
+        shift(letter, (0,0)),
+        shift(dotah, (z2[0],0)),
+        _draw2([(z3,None),None,(z4,None)]),
+        shift(hacek, (5.5,2))
+    ])
+else:
+    raise Exception("Unsupported style")
 
 #beginchar("u", 10u#, 7u#, 0);
 #  z0=(0,6); z1=(.5,7); z2=(-1,1); z3=(0,0); z4=(3.5,7); z5=(2,1);
