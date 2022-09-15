@@ -453,40 +453,6 @@ lookup PCONN {
     substitute P' @LETTER_LC by P conn_P;
 } PCONN;
 
-# the kern is 2u, where u=40 (using our scale=40), so total 80
-feature kern {
-  ignore position @LETTER a';
-  position a' <80 0 80 0>;
-  ignore position @LETTER aacute';
-  position aacute' <80 0 80 0>;
-  ignore position @LETTER adieresis';
-  position adieresis' <80 0 80 0>;
-  ignore position @LETTER c';
-  position c' <80 0 80 0>;
-  ignore position @LETTER ccaron';
-  position ccaron' <80 0 80 0>;
-  ignore position @LETTER d';
-  position d' <80 0 80 0>;
-  ignore position @LETTER dcaron';
-  position dcaron' <80 0 80 0>;
-  ignore position @LETTER g';
-  position g' <80 0 80 0>;
-  ignore position @LETTER o';
-  position o' <80 0 80 0>;
-  ignore position @LETTER oacute';
-  position oacute' <80 0 80 0>;
-  ignore position @LETTER ocircumflex';
-  position ocircumflex' <80 0 80 0>;
-  ignore position @LETTER onarrow';
-  position onarrow' <80 0 80 0>;
-  ignore position @LETTER oacutenarrow';
-  position oacutenarrow' <80 0 80 0>;
-  ignore position @LETTER ocircumflexnarrow';
-  position ocircumflexnarrow' <80 0 80 0>;
-  ignore position @LETTER q';
-  position q' <80 0 80 0>;
-} kern;
-
 feature liga {
   substitute s' lookup SLEFT lookup SDEPTH lookup SCONN;
   substitute scaron' lookup SLEFT lookup SDEPTH lookup SCONN;
