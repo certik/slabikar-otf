@@ -46,6 +46,8 @@ stroke_width = 0.4 * scale
 
 # 1 .. original
 # 2 .. U.S.
+# 3 .. alternate "z" (for z_style only), like z_style=1, but with a loop
+# 4 .. alternate "z" (for z_style only), like "r", but with a loop
 z_style = 1
 t_style = 1
 
@@ -972,6 +974,34 @@ elif z_style == 2:
     add_char("zcaron", z4[0]+7.5, [
         shift(letter, (0,0)),
         shift(smycka2, (z4[0]+2,0)),
+        shift(hacek, (2.5,0))
+    ])
+elif z_style == 3:
+    z0=(0,6); z1=(1.5,7); z2=(4,7); z2b=(1,1); z3=(-0.5,0); z3b=(-0.5, 1)
+    z4=(4,0); z5=(11,6);
+    z2bt=array(z2b)-array(z2)
+    letter = _draw2([(z0,sklon2),1,(z1,right),1,(-z2bt,z2,None),None,
+            (z2b,z2bt),1,
+            (z3,left),1,(z3b,right),1,(z4,right),1.5,(z5,sklon2)])
+    add_char("z", 11, [
+        shift(letter, (0,0)),
+    ])
+    add_char("zcaron", 11, [
+        shift(letter, (0,0)),
+        shift(hacek, (2.5,0))
+    ])
+elif z_style == 4:
+    z0=(0,6); z1=(0.5,7); z2=(4,7); z2b=(1,1); z3=(-0.5,0); z3b=(-0.5, 1)
+    z4=(4,0); z5=(11,6);
+    z2bt=array(z2b)-array(z2)
+    letter = _draw2([(z0,sklon2),1,(-sklon1,z1,sklon1),1,(-z2bt,z2,None),None,
+            (z2b,z2bt),1,
+            (z3,left),1,(z3b,right),1,(z4,right),1.5,(z5,sklon2)])
+    add_char("z", 11, [
+        shift(letter, (0,0)),
+    ])
+    add_char("zcaron", 11, [
+        shift(letter, (0,0)),
         shift(hacek, (2.5,0))
     ])
 else:
