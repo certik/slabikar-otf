@@ -11,8 +11,10 @@ checkoutlinesufo -e font.ufo -o tmp
 psautohint tmp
 makeotf -r -gs -omitMacNames -f tmp
 
+cp Slabikar.otf examples/html/
+cp Slabikar.otf examples/tex/
+
 cd examples/tex
-cp ../../Slabikar.otf .
 tectonic example.tex
 
 gs \
