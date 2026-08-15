@@ -902,9 +902,6 @@ def flatten_positive(loops):
     if not loops:
         return []
 
-    # Original closed polygons for winding tests (just the coordinates).
-    orig = [[pt.p for pt in loop] for loop in loops]
-
     segs = []  # (p0, p1, piece, t0, t1, loop_id, idx)
     for li, loop in enumerate(loops):
         m = len(loop)
@@ -912,7 +909,13 @@ def flatten_positive(loops):
             a, b = loop[i], loop[(i + 1) % m]
             if veq(a.p, b.p, 1e-10):
                 continue
-            segs.append((a.p, b.p, a.piece, a.t, b.t, li, i))
+            # Path::Fill (!invert, back): piece comes from the edge *end*
+            # point; if the start belongs to a different command, tSt = 0.
+            if a.piece == b.piece:
+                piece, t0, t1 = b.piece, a.t, b.t
+            else:
+                piece, t0, t1 = b.piece, 0.0, b.t
+            segs.append((a.p, b.p, piece, t0, t1, li, i))
 
     n = len(segs)
     cuts = [[] for _ in range(n)]
@@ -1035,42 +1038,40 @@ def flatten_positive(loops):
                 area += pa[0] * pb[1] - pb[0] * pa[1]
             faces.append((cyc, 0.5 * area))
 
-    def winding_at(pt):
-        w = 0
-        x, y = pt
-        for poly in orig:
-            m = len(poly)
-            for i in range(m):
-                ax, ay = poly[i]
-                bx, by = poly[(i + 1) % m]
-                if ay <= y:
-                    if by > y and (bx - ax) * (y - ay) - (by - ay) * (x - ax) > 0:
-                        w += 1
-                else:
-                    if by <= y and (bx - ax) * (y - ay) - (by - ay) * (x - ax) < 0:
-                        w -= 1
-        return w
-
-    face_w = []
-    for cyc, area in faces:
-        if abs(area) < 1e-8:
-            face_w.append(0)
-            continue
-        # Midpoint of the longest edge, nudged to the left (into the face).
-        # Do not use the vertex centroid: for the unbounded face the
-        # centroid of the outer cycle sits *inside* the shape.
-        best_len = -1.0
-        test = None
-        for a, b, _ in cyc:
-            pa, pb = vdb.pts[a], vdb.pts[b]
-            d = vdist(pa, pb)
-            if d > best_len:
-                best_len = d
-                mid = vmul(vadd(pa, pb), 0.5)
-                nrm = vunit(ccw(vsub(pb, pa)))
-                offset = max(0.35, min(1.5, 0.08 * d))
-                test = vadd(mid, vmul(nrm, offset))
-        face_w.append(winding_at(test) if test else 0)
+    # Winding of each face via BFS from the unbounded face (w = 0),
+    # matching Livarot ConvertToShape: crossing a forward original edge
+    # from left to right leaves the filled side and decreases winding.
+    # Disjoint strokes (colon, quotes, accents) are separate components;
+    # each has its own unbounded face.
+    face_w = [0] * len(faces)
+    if faces:
+        left_face = {}
+        for fi, (cyc, _) in enumerate(faces):
+            for u, v, ei in cyc:
+                left_face[(u, v, ei)] = fi
+        adj_f = [[] for _ in faces]
+        for i, e in enumerate(edges):
+            lf = left_face.get((e.u, e.v, i))
+            rf = left_face.get((e.v, e.u, i))
+            if lf is None or rf is None or lf == rf:
+                continue
+            adj_f[lf].append((rf, -1))
+            adj_f[rf].append((lf, +1))
+        remaining = set(range(len(faces)))
+        while remaining:
+            unbound = min(remaining, key=lambda i: faces[i][1])
+            seen = {unbound}
+            queue = [unbound]
+            face_w[unbound] = 0
+            while queue:
+                f = queue.pop()
+                for g, dw in adj_f[f]:
+                    if g in seen or g not in remaining:
+                        continue
+                    face_w[g] = face_w[f] + dw
+                    seen.add(g)
+                    queue.append(g)
+            remaining -= seen
 
     # directed-edge -> left-face winding
     left_w = {}
@@ -1083,10 +1084,8 @@ def flatten_positive(loops):
         for u, v in ((e.u, e.v), (e.v, e.u)):
             lw = left_w.get((u, v, i), 0)
             rw = left_w.get((v, u, i), 0)
-            # Nonzero fill: keep the boundary of the region the outline
-            # actually covers.  fill_positive would drop a stroke whose
-            # outline happens to wind clockwise (winding = -1).
-            if lw != 0 and rw == 0:
+            # fill_positive: keep the boundary of {winding > 0}.
+            if lw > 0 and rw <= 0:
                 keepers.append((u, v, i))
 
     kadj = {}
@@ -1138,38 +1137,24 @@ def flatten_positive(loops):
 # Recover glif contours from flattened cycles + original offset pieces
 # ---------------------------------------------------------------------------
 
-def _split_cubic_pts(pts, t):
-    """de Casteljau split of a 4-point cubic.  Returns (left, right)."""
-    p0, p1, p2, p3 = pts
-    q0 = vadd(vmul(p0, 1 - t), vmul(p1, t))
-    q1 = vadd(vmul(p1, 1 - t), vmul(p2, t))
-    q2 = vadd(vmul(p2, 1 - t), vmul(p3, t))
-    r0 = vadd(vmul(q0, 1 - t), vmul(q1, t))
-    r1 = vadd(vmul(q1, 1 - t), vmul(q2, t))
-    s = vadd(vmul(r0, 1 - t), vmul(r1, t))
-    return (p0, q0, r0, s), (s, r1, q2, p3)
+def cubic_tangent(t, iS, isD, iE, ieD):
+    """Path::CubicTangent: first derivative of a Livarot cubic at t."""
+    ax = vadd(vsub(ieD, vmul(iE, 2.0)), vadd(vmul(iS, 2.0), isD))
+    bx = vsub(vsub(vsub(vmul(iE, 3.0), ieD), vmul(isD, 2.0)), vmul(iS, 3.0))
+    cx = isD
+    return vadd(vadd(vmul(ax, 3.0 * t * t), vmul(bx, 2.0 * t)), cx)
 
 
-def _trim_cubic_pts(pts, t0, t1):
-    t0 = max(0.0, min(1.0, t0))
-    t1 = max(0.0, min(1.0, t1))
-    if t1 < t0:
-        pts = (pts[3], pts[2], pts[1], pts[0])
-        t0, t1 = 1.0 - t0, 1.0 - t1
-    if t1 < 1.0 - 1e-12:
-        pts, _ = _split_cubic_pts(pts, t1)
-        if t1 > 1e-12:
-            t0 = t0 / t1
-    if t0 > 1e-12:
-        _, pts = _split_cubic_pts(pts, t0)
-    return pts
-
-
-def _cubic_pts(p0, cub: CubicTo):
-    p3 = cub.p
-    p1 = vadd(p0, vmul(cub.start, 1.0 / 3.0))
-    p2 = vsub(p3, vmul(cub.end, 1.0 / 3.0))
-    return (p0, p1, p2, p3)
+def _reforme_cubic(p0, cub: CubicTo, ts, te, p_start, p_end):
+    """Shape::ReFormeCubicTo: sub-range of an offset cubic, endpoints on
+    the flattened graph.  Handles are P'(t)*(te-ts)."""
+    sdx = cubic_tangent(ts, p0, cub.start, cub.p, cub.end)
+    edx = cubic_tangent(te, p0, cub.start, cub.p, cub.end)
+    dt = te - ts
+    sdx, edx = vmul(sdx, dt), vmul(edx, dt)
+    c1 = vadd(p_start, vmul(sdx, 1.0 / 3.0))
+    c2 = vsub(p_end, vmul(edx, 1.0 / 3.0))
+    return c1, c2
 
 
 def _piece_map(path: Path):
@@ -1229,9 +1214,7 @@ def cycles_to_glif(cycles, pieces):
                 segs.append(("L", p_end))
                 continue
             _, p0, cub = info
-            pts = _trim_cubic_pts(_cubic_pts(p0, cub), t0, t1)
-            # snap endpoints to the graph vertices
-            c1, c2 = pts[1], pts[2]
+            c1, c2 = _reforme_cubic(p0, cub, t0, t1, p_start, p_end)
             # if the recovered cubic is essentially a line, emit a line
             chord = vsub(p_end, p_start)
             cl = vlen(chord)
@@ -1284,6 +1267,67 @@ def cycles_to_glif(cycles, pieces):
                     raw[0].type = "line"
                     contours.append(raw)
     return contours
+
+
+def _poly_loop_to_cycle(loop):
+    """Polyline loop -> ConvertToForme edge list (Fill back-data convention)."""
+    cyc = []
+    m = len(loop)
+    for i in range(m):
+        a, b = loop[i], loop[(i + 1) % m]
+        if veq(a.p, b.p, 1e-10):
+            continue
+        if a.piece == b.piece:
+            piece, t0, t1 = b.piece, a.t, b.t
+        else:
+            piece, t0, t1 = b.piece, 0.0, b.t
+        cyc.append((a.p, b.p, piece, t0, t1))
+    return cyc
+
+
+def _abs_area_sum(contours):
+    tot = 0.0
+    for c in contours:
+        on = [(p.x, p.y) for p in c if p.type != "offcurve"]
+        a = 0.0
+        n = len(on)
+        for i in range(n):
+            x1, y1 = on[i]
+            x2, y2 = on[(i + 1) % n]
+            a += x1 * y2 - x2 * y1
+        tot += abs(0.5 * a)
+    return tot
+
+
+def convert_to_forme(outlined: Path, thresh=1.0):
+    """ConvertWithBackData + ConvertToShape(fill_positive) + ConvertToForme.
+
+    If the planar union inflates the filled area (a bad winding walk, as
+    on a self-overlapping spiral like '@'), keep the flattened outline
+    and only run ReFormeCubicTo.  Inkscape's ConvertToShape never grows a
+    simple sausage by a large factor; it only unions small self-overlaps.
+    """
+    loops = path_to_polylines(outlined, thresh)
+    if not loops:
+        return []
+    pieces = _piece_map(outlined)
+    raw = cycles_to_glif(
+        [c for c in (_poly_loop_to_cycle(lp) for lp in loops) if len(c) >= 3],
+        pieces,
+    )
+    cycles = flatten_positive(loops)
+    if not cycles:
+        return raw
+    merged = cycles_to_glif(cycles, pieces)
+    if not merged:
+        return raw
+    raw_a = _abs_area_sum(raw)
+    mer_a = _abs_area_sum(merged)
+    # ConvertToShape only unions small self-overlaps.  Reject a walk that
+    # invents a huge outer+hole or drops a whole component.
+    if raw_a > 1.0 and (mer_a > 1.30 * raw_a or mer_a < 0.90 * raw_a):
+        return raw
+    return merged
 
 
 # ---------------------------------------------------------------------------
@@ -1543,9 +1587,14 @@ def stroke_to_path(contours, stroke_width, join="miter", cap="butt",
     outlined = outline_path(src, width, join, cap, miter)
     if not outlined.cmds:
         return []
-    outlined = _linearize_straight_cubics(outlined, thresh=1.0)
-    outlined = _drop_collapsed(outlined, eps=max(0.2, 0.02 * width))
-    out = outlined_path_to_glif(outlined)
+    # Inkscape: ConvertWithBackData(1.0) + ConvertToShape(fill_positive)
+    # + ConvertToForme (ReFormeCubicTo).  Fall back to the raw outline if
+    # the planar flatten finds no positive region.
+    out = convert_to_forme(outlined)
+    if not out:
+        outlined = _linearize_straight_cubics(outlined, thresh=1.0)
+        outlined = _drop_collapsed(outlined, eps=max(0.2, 0.02 * width))
+        out = outlined_path_to_glif(outlined)
     # Collapsed inner offset of a small loop is a tiny inverted ring.
     # Inkscape's flatten discards it; keep only contours with real area.
     min_area = (abs(width) * 2) ** 2 * 0.5
