@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Slabikář template fitting</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="toolbar">
+  <span class="title">Slabikář fit</span>
+  <span class="group">
+    <button id="mode-metafont" class="mode active" title="Metafont mode: knots, optional directions, tensions (M)">Metafont</button>
+    <button id="mode-bezier" class="mode" title="Bezier mode: control point handles (B)">Bezier</button>
+  </span>
+  <span class="group">
+    <label>glyphs <input type="range" id="opacity" min="0" max="100" value="55"></label>
+    <label><input type="checkbox" id="only-selected"> only selected</label>
+    <label><input type="checkbox" id="show-centerline" checked> centerline</label>
+  </span>
+  <span class="group">
+    <button id="undo" title="Ctrl+Z">undo</button>
+    <button id="redo" title="Ctrl+Shift+Z">redo</button>
+    <button id="export" title="Download letters.json">export</button>
+    <span id="save-status" class="saved">saved</span>
+  </span>
+  <span class="help">drag knots &middot; drag arrows to pin a direction, dbl-click arrow = auto &middot;
+    click a tension badge to edit &middot; dbl-click a segment to insert a knot &middot;
+    Del removes a knot &middot; dashed box moves the letter, corner square rescales &middot;
+    wheel zooms, drag background pans</span>
+</div>
+<div id="main">
+  <div id="sidebar"></div>
+  <svg id="canvas" xmlns="http://www.w3.org/2000/svg">
+    <g id="world">
+      <image id="template" />
+      <g id="glyphs"></g>
+      <g id="editor"></g>
+    </g>
+  </svg>
+  <div id="inspector"></div>
+</div>
+<script src="hobby.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

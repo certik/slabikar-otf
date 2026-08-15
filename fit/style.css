@@ -1,0 +1,93 @@
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; font: 13px/1.4 -apple-system, "Helvetica Neue", sans-serif; }
+body { display: flex; flex-direction: column; background: #2b2b2e; color: #ddd; }
+
+#toolbar {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 6px 10px; background: #1d1d20; border-bottom: 1px solid #000;
+}
+#toolbar .title { font-weight: 700; color: #fff; }
+#toolbar .group { display: flex; align-items: center; gap: 6px; }
+#toolbar .help { color: #888; font-size: 11px; margin-left: auto; max-width: 46em; }
+#toolbar button {
+  background: #3a3a40; color: #ddd; border: 1px solid #555; border-radius: 4px;
+  padding: 3px 10px; cursor: pointer;
+}
+#toolbar button:hover { background: #48484f; }
+#toolbar button.mode.active { background: #2b6cb0; border-color: #63b3ed; color: #fff; }
+#save-status { font-size: 11px; padding: 2px 8px; border-radius: 8px; }
+#save-status.saved { color: #9ae6b4; }
+#save-status.saving { color: #fbd38d; }
+#save-status.error { color: #fc8181; }
+#save-status.local { color: #aaa; }
+
+#main { flex: 1; display: flex; min-height: 0; }
+
+#sidebar {
+  width: 150px; overflow-y: auto; background: #232326;
+  border-right: 1px solid #000; padding: 4px 0;
+}
+#sidebar .cell-label {
+  padding: 3px 8px 1px; color: #777; font-size: 10px; text-transform: none;
+  border-top: 1px solid #2e2e33;
+}
+#sidebar .entry {
+  display: flex; align-items: center; gap: 6px; padding: 2px 8px; cursor: pointer;
+}
+#sidebar .entry:hover { background: #2e2e35; }
+#sidebar .entry.selected { background: #2b6cb0; color: #fff; }
+#sidebar .entry input { margin: 0; }
+#sidebar .entry .glyphname { color: #999; font-size: 10px; margin-left: auto; }
+#sidebar .entry.selected .glyphname { color: #cde; }
+
+#canvas { flex: 1; min-width: 0; background: #38383c; touch-action: none; }
+
+#inspector {
+  width: 230px; overflow-y: auto; background: #232326;
+  border-left: 1px solid #000; padding: 8px;
+}
+#inspector h3 { margin: 2px 0 6px; font-size: 12px; color: #fff; }
+#inspector .row { display: flex; align-items: center; gap: 6px; margin: 3px 0; }
+#inspector .row label { width: 62px; color: #aaa; font-size: 11px; }
+#inspector input[type=number], #inspector input[type=text] {
+  width: 70px; background: #1b1b1e; color: #eee; border: 1px solid #555;
+  border-radius: 3px; padding: 2px 4px;
+}
+#inspector input:disabled { opacity: 0.4; }
+#inspector .hint { color: #777; font-size: 11px; margin: 6px 0; }
+#inspector button {
+  background: #3a3a40; color: #ddd; border: 1px solid #555; border-radius: 4px;
+  padding: 2px 8px; cursor: pointer; font-size: 11px;
+}
+#inspector button.on { background: #2b6cb0; border-color: #63b3ed; color: #fff; }
+#inspector hr { border: none; border-top: 1px solid #333; margin: 8px 0; }
+#inspector .auto-val { color: #8fb7dd; font-style: italic; }
+
+/* SVG styles */
+.glyph path.stroke { fill: none; stroke: #1560d0; stroke-opacity: 0.55;
+  stroke-linecap: round; stroke-linejoin: round; }
+.glyph path.center { fill: none; stroke: #072a66; stroke-opacity: 0.9;
+  stroke-linecap: round; stroke-linejoin: round; }
+.glyph.dimmed path { stroke-opacity: 0.12; }
+.glyph.selected path.stroke { stroke: #e07818; }
+.glyph.selected path.center { stroke: #7a3a00; }
+
+#editor .knot { fill: #fff; stroke: #d33682; stroke-width: 1.5; cursor: move; }
+#editor .knot.selected { fill: #ffd700; }
+#editor .knot.line-adjacent { stroke: #666; }
+#editor .dir-arrow { stroke: #d33682; stroke-width: 1.6; fill: none; pointer-events: none; }
+#editor .dir-tip { fill: #d33682; cursor: grab; }
+#editor .dir-arrow.auto { stroke: #d33682; stroke-opacity: 0.35; stroke-dasharray: 3 3; }
+#editor .dir-tip.auto { fill: #d33682; fill-opacity: 0.35; }
+#editor .ctrl-line { stroke: #999; stroke-width: 1; pointer-events: none; }
+#editor .ctrl-pt { fill: #2aa198; stroke: #fff; stroke-width: 1; cursor: grab; }
+#editor .tension-badge { cursor: pointer; }
+#editor .tension-badge rect { fill: #1d1d20; fill-opacity: 0.85; stroke: #666; rx: 3; }
+#editor .tension-badge.selected rect { stroke: #ffd700; }
+#editor .tension-badge text { fill: #eee; font-size: 10px; text-anchor: middle;
+  dominant-baseline: central; user-select: none; }
+#editor .tension-badge.default text { fill: #999; }
+#editor .bbox { fill: transparent; pointer-events: all; cursor: move;
+  stroke: #e07818; stroke-opacity: 0.5; stroke-dasharray: 4 3; }
+#editor .scale-handle { fill: #e07818; stroke: #fff; stroke-width: 1; cursor: nwse-resize; }
+#editor .origin { fill: none; stroke: #e07818; stroke-width: 1; }

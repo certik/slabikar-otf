@@ -55,15 +55,69 @@ t_style = 1
 
 import os
 from bezier import compute_control_points
-from math import sin, cos, pi
+from math import sin, cos, pi, atan2
 from numpy import array
 from glif import Glif, verify, glif2glif, Point
 from stroke import stroke_to_path
+
+# Registry mapping contours (by identity) to the metafont-style path
+# specification (knots + optional directions + tensions) they were generated
+# from. This spec-level information is what gen/export_fit.py exports for
+# the interactive curve-fitting UI in fit/. The registry also keeps a
+# reference to each contour so that id()s stay unique.
+_specs = {}
+
+def _record_spec(contour, spec):
+    _specs[id(contour)] = (contour, spec)
+
+def get_spec(contour):
+    "Return the metafont-style spec a contour was drawn from (or None)."
+    e = _specs.get(id(contour))
+    return e[1] if e is not None else None
+
+def _vec_angle(v):
+    "Direction vector -> angle in degrees (or None)."
+    if v is None:
+        return None
+    return atan2(float(v[1]), float(v[0])) * 180 / pi
+
+def _node_parts(node):
+    "A _draw2 node is (z, tangent) or (tangent_in, z, tangent_out)."
+    if len(node) == 3:
+        t_in, z, t_out = node
+    else:
+        z, t = node
+        t_in = t_out = t
+    return z, t_in, t_out
+
+def _path_spec(path):
+    "Normalize a _draw2 path into {knots, segments, cyclic}."
+    knots = []
+    segments = []
+    z, t_in, t_out = _node_parts(path[0])
+    knots.append({"x": float(z[0]), "y": float(z[1]),
+                  "dir_in": _vec_angle(t_in), "dir_out": _vec_angle(t_out)})
+    for i in range((len(path)-1)//2):
+        tension = path[2*i+1]
+        z, t_in, t_out = _node_parts(path[2*i+2])
+        knots.append({"x": float(z[0]), "y": float(z[1]),
+                      "dir_in": _vec_angle(t_in),
+                      "dir_out": _vec_angle(t_out)})
+        if tension is None:
+            segments.append({"type": "line"})
+        else:
+            segments.append({"type": "curve", "tension": float(tension)})
+    return {"knots": knots, "segments": segments, "cyclic": False}
 
 def shift(contour, s):
     p = []
     for x in contour:
         p.append(Point(x=x.x+s[0], y=x.y+s[1], type=x.type, smooth=x.smooth))
+    spec = get_spec(contour)
+    if spec is not None:
+        knots = [dict(k, x=k["x"]+s[0], y=k["y"]+s[1])
+                 for k in spec["knots"]]
+        _record_spec(p, dict(spec, knots=knots))
     return p
 
 #path = [z1,
@@ -108,7 +162,9 @@ def _draw2(path):
                 p2.append([None, None, None, node2[1]])
             else:
                 p2.append([node1[-1], tension, node2[0], node2[1]])
-    return _draw(p2)
+    contour = _draw(p2)
+    _record_spec(contour, _path_spec(path))
+    return contour
 
 
 def create_glif(contours, w, scale):
@@ -126,8 +182,13 @@ def create_glif(contours, w, scale):
     return g
 
 _chars = []
+_char_specs = {}
 
 def add_char(charname, width, contours):
+    _char_specs[charname] = {
+        "width": width,
+        "contours": [get_spec(c) for c in contours],
+    }
     g = create_glif(contours, width, scale)
     _chars.append((charname, g))
 
@@ -2194,38 +2255,39 @@ def fix_name(x):
         x = "_" + x[1:]
     return x
 
-glyphs_dir = "../font.ufo/glyphs"
-run(f"mkdir -p {glyphs_dir}")
+def write_font():
+    glyphs_dir = "../font.ufo/glyphs"
+    run(f"mkdir -p {glyphs_dir}")
 
-by_name = {name: g for name, g in _chars}
-for name in glyphs:
-    letter = fix_name(name)
-    g = by_name.get(letter)
-    if g is None:
-        raise Exception(f"No outline defined for glyph {name}")
-    g.name = name
-    g.contours = stroke_to_path(g.contours, stroke_width)
-    verify(g)
-    open(f"{glyphs_dir}/{letter}.glif", "w").write(glif2glif(g))
-print(f"Wrote {len(glyphs)} outlined glyphs to {glyphs_dir}")
+    by_name = {name: g for name, g in _chars}
+    for name in glyphs:
+        letter = fix_name(name)
+        g = by_name.get(letter)
+        if g is None:
+            raise Exception(f"No outline defined for glyph {name}")
+        g.name = name
+        g.contours = stroke_to_path(g.contours, stroke_width)
+        verify(g)
+        open(f"{glyphs_dir}/{letter}.glif", "w").write(glif2glif(g))
+    print(f"Wrote {len(glyphs)} outlined glyphs to {glyphs_dir}")
 
-s = """\
+    s = """\
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 \t<dict>
 """
-for name in glyphs:
-    filename = fix_name(name) + ".glif"
-    s += f"\t\t<key>{name}</key>\n"
-    s += f"\t\t<string>{filename}</string>\n"
-s += """\
+    for name in glyphs:
+        filename = fix_name(name) + ".glif"
+        s += f"\t\t<key>{name}</key>\n"
+        s += f"\t\t<string>{filename}</string>\n"
+    s += """\
 \t</dict>
 </plist>
 """
-open(f"{glyphs_dir}/contents.plist", "w").write(s)
+    open(f"{glyphs_dir}/contents.plist", "w").write(s)
 
-s = """\
+    s = """\
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -2233,19 +2295,22 @@ s = """\
 \t\t<key>public.glyphOrder</key>
 \t\t<array>
 """
-for name in glyphs:
-    s += f"\t\t\t<string>{name}</string>\n"
-s += """\
+    for name in glyphs:
+        s += f"\t\t\t<string>{name}</string>\n"
+    s += """\
 \t\t</array>
 \t</dict>
 </plist>
 """
-open(f"{glyphs_dir}/../lib.plist", "w").write(s)
+    open(f"{glyphs_dir}/../lib.plist", "w").write(s)
 
-s = ""
-for name in glyphs:
-    s += f"{name}\t{name}"
-    if name in unicode:
-        s += "\t" + ",".join(unicode[name])
-    s += "\n"
-open(f"{glyphs_dir}/../../GlyphOrderAndAliasDB", "w").write(s)
+    s = ""
+    for name in glyphs:
+        s += f"{name}\t{name}"
+        if name in unicode:
+            s += "\t" + ",".join(unicode[name])
+        s += "\n"
+    open(f"{glyphs_dir}/../../GlyphOrderAndAliasDB", "w").write(s)
+
+if __name__ == "__main__":
+    write_font()
