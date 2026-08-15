@@ -1084,9 +1084,18 @@ def flatten_positive(loops):
         for u, v in ((e.u, e.v), (e.v, e.u)):
             lw = left_w.get((u, v, i), 0)
             rw = left_w.get((v, u, i), 0)
-            # fill_positive: keep the boundary of {winding > 0}.
+            # Prefer fill_positive (Inkscape).  Y-up closed rings often
+            # have w ≤ 0 everywhere; fall back to nonzero so the tube
+            # is not dropped.
             if lw > 0 and rw <= 0:
                 keepers.append((u, v, i))
+    if not keepers:
+        for i, e in enumerate(edges):
+            for u, v in ((e.u, e.v), (e.v, e.u)):
+                lw = left_w.get((u, v, i), 0)
+                rw = left_w.get((v, u, i), 0)
+                if lw != 0 and rw == 0:
+                    keepers.append((u, v, i))
 
     kadj = {}
     for u, v, ei in keepers:
@@ -1285,27 +1294,139 @@ def _poly_loop_to_cycle(loop):
     return cyc
 
 
-def _abs_area_sum(contours):
-    tot = 0.0
+def _contour_signed_area(c):
+    on = [(p.x, p.y) for p in c if p.type != "offcurve"]
+    a = 0.0
+    n = len(on)
+    for i in range(n):
+        x1, y1 = on[i]
+        x2, y2 = on[(i + 1) % n]
+        a += x1 * y2 - x2 * y1
+    return 0.5 * a
+
+
+def _net_area(contours):
+    return abs(sum(_contour_signed_area(c) for c in contours))
+
+
+def _contour_bbox(c):
+    on = [(p.x, p.y) for p in c if p.type != "offcurve"]
+    xs = [p[0] for p in on]
+    ys = [p[1] for p in on]
+    return (min(xs), min(ys), max(xs), max(ys))
+
+
+def _holes_nested(contours):
+    """True if every non-dominant contour sits inside the largest one."""
+    if len(contours) <= 1:
+        return True
+    areas = [abs(_contour_signed_area(c)) for c in contours]
+    i = max(range(len(contours)), key=lambda k: areas[k])
+    ox0, oy0, ox1, oy1 = _contour_bbox(contours[i])
+    for j, c in enumerate(contours):
+        if j == i:
+            continue
+        x0, y0, x1, y1 = _contour_bbox(c)
+        if x0 < ox0 or y0 < oy0 or x1 > ox1 or y1 > oy1:
+            return False
+    return True
+
+
+def _glif_loops(contours):
+    loops = []
     for c in contours:
-        on = [(p.x, p.y) for p in c if p.type != "offcurve"]
-        a = 0.0
-        n = len(on)
+        seq = [(float(p.x), float(p.y), p.type) for p in c]
+        ons = [k for k, p in enumerate(seq) if p[2] != "offcurve"]
+        if len(ons) < 3:
+            continue
+        poly = []
+        for j, oi in enumerate(ons):
+            ni = ons[(j + 1) % len(ons)]
+            p0 = (seq[oi][0], seq[oi][1])
+            offs = seq[oi + 1:ni] if ni > oi else seq[oi + 1:] + seq[:ni]
+            if len(offs) == 2:
+                p1, p2 = (offs[0][0], offs[0][1]), (offs[1][0], offs[1][1])
+                p3 = (seq[ni][0], seq[ni][1])
+                n = 8
+                for k in range(0 if j == 0 else 1, n + 1):
+                    t = k / n
+                    u = 1 - t
+                    poly.append((
+                        u**3 * p0[0] + 3 * u * u * t * p1[0] + 3 * u * t * t * p2[0] + t**3 * p3[0],
+                        u**3 * p0[1] + 3 * u * u * t * p1[1] + 3 * u * t * t * p2[1] + t**3 * p3[1],
+                    ))
+            else:
+                if j == 0:
+                    poly.append(p0)
+                poly.append((seq[ni][0], seq[ni][1]))
+        if len(poly) >= 3:
+            loops.append(poly)
+    return loops
+
+
+def _raster_fill(loops, box, scale=0.5):
+    """Coarse nonzero fill; returns a set of (ix, iy) pixels."""
+    xmin, ymin, xmax, ymax = box
+    filled = set()
+    if xmax <= xmin or ymax <= ymin:
+        return filled
+    W = max(1, int((xmax - xmin) * scale) + 2)
+    H = max(1, int((ymax - ymin) * scale) + 2)
+    edges = []
+    for loop in loops:
+        n = len(loop)
         for i in range(n):
-            x1, y1 = on[i]
-            x2, y2 = on[(i + 1) % n]
-            a += x1 * y2 - x2 * y1
-        tot += abs(0.5 * a)
-    return tot
+            x0, y0 = loop[i]
+            x1, y1 = loop[(i + 1) % n]
+            a = ((x0 - xmin) * scale, (ymax - y0) * scale)
+            b = ((x1 - xmin) * scale, (ymax - y1) * scale)
+            if abs(a[1] - b[1]) < 1e-9:
+                continue
+            edges.append((a[0], a[1], b[0], b[1]))
+    for y in range(H):
+        ys = y + 0.5
+        xs = []
+        for x0, y0, x1, y1 in edges:
+            if (y0 <= ys < y1) or (y1 <= ys < y0):
+                t = (ys - y0) / (y1 - y0)
+                xs.append((x0 + t * (x1 - x0), 1 if y1 > y0 else -1))
+        xs.sort()
+        w = 0
+        prev = None
+        for x, d in xs:
+            if w != 0 and prev is not None:
+                ia = max(0, int(prev))
+                ib = min(W, int(x) + 1)
+                for ix in range(ia, ib):
+                    filled.add((ix, y))
+            w += d
+            prev = x
+    return filled
+
+
+def _filled_xor_ratio(a_contours, b_contours):
+    la = _glif_loops(a_contours)
+    lb = _glif_loops(b_contours)
+    pts = [p for loop in la + lb for p in loop]
+    if not pts:
+        return 0.0
+    xs = [p[0] for p in pts]
+    ys = [p[1] for p in pts]
+    box = (min(xs) - 4, min(ys) - 4, max(xs) + 4, max(ys) + 4)
+    fa, fb = _raster_fill(la, box), _raster_fill(lb, box)
+    if not fa:
+        return 0.0
+    return len(fa.symmetric_difference(fb)) / max(len(fa), 1)
 
 
 def convert_to_forme(outlined: Path, thresh=1.0):
-    """ConvertWithBackData + ConvertToShape(fill_positive) + ConvertToForme.
+    """ConvertWithBackData + ConvertToShape + ConvertToForme.
 
-    If the planar union inflates the filled area (a bad winding walk, as
-    on a self-overlapping spiral like '@'), keep the flattened outline
-    and only run ReFormeCubicTo.  Inkscape's ConvertToShape never grows a
-    simple sausage by a large factor; it only unions small self-overlaps.
+    A correct union barely changes net filled area (nonzero of the raw
+    outline already fills overlaps).  A bad winding walk fills counters
+    or drops components; reject those and keep ReFormeCubicTo of the
+    flattened outline.  Extra contours are the holes ConvertToShape
+    punches at self-overlaps — allow at most two more than the raw.
     """
     loops = path_to_polylines(outlined, thresh)
     if not loops:
@@ -1321,11 +1442,20 @@ def convert_to_forme(outlined: Path, thresh=1.0):
     merged = cycles_to_glif(cycles, pieces)
     if not merged:
         return raw
-    raw_a = _abs_area_sum(raw)
-    mer_a = _abs_area_sum(merged)
-    # ConvertToShape only unions small self-overlaps.  Reject a walk that
-    # invents a huge outer+hole or drops a whole component.
-    if raw_a > 1.0 and (mer_a > 1.30 * raw_a or mer_a < 0.90 * raw_a):
+    raw_n = _net_area(raw)
+    mer_n = _net_area(merged)
+    if raw_n > 1.0 and (mer_n > 1.08 * raw_n or mer_n < 0.92 * raw_n):
+        return raw
+    # Do not drop a whole stroke (accent, second quote, …).
+    if len(merged) < len(raw):
+        return raw
+    if len(merged) > len(raw) + 2:
+        return raw
+    if len(merged) > 1 and not _holes_nested(merged):
+        return raw
+    # ConvertToShape of a sausage must keep the same filled region.
+    # Filling a letter counter (nine, s) makes a large xor vs the raw outline.
+    if raw and _filled_xor_ratio(raw, merged) > 0.03:
         return raw
     return merged
 
