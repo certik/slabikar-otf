@@ -325,51 +325,67 @@ def is_nul_curve(cmd, curX):
 
 
 # ---------------------------------------------------------------------------
-# Cubic offset  (RecStdCubicTo / StdCubicTo)
+# Cubic offset
+#
+# Interpolate a cubic through the *true* offset (point + width * normal) at
+# t = 0, 1/3, 2/3, 1.  That is what Inkscape's flatten/refit produces: a
+# cubic that stays at constant distance from the centerline.  The older
+# 1+w/R handle-scale heuristic sags inward (~0.25 units) and shows up as a
+# halo against Inkscape.
 # ---------------------------------------------------------------------------
 
+def _bez4(p0, p1, p2, p3, t):
+    u = 1.0 - t
+    return vadd(
+        vadd(vmul(p0, u * u * u), vmul(p1, 3 * u * u * t)),
+        vadd(vmul(p2, 3 * u * t * t), vmul(p3, t * t * t)),
+    )
+
+
+def _true_offset_point(p0, cub, t, width):
+    pos, tgt, _tle, _rad = tangent_on_cub_at(t, p0, cub, t > 0.5)
+    if vlen2(tgt) < 1e-20:
+        return pos
+    return vadd(pos, vmul(cw(tgt), width))
+
+
+def _fit_offset_cubic(p0, cub, width):
+    """Cubic interpolating the true offset at t = 0, 1/3, 2/3, 1."""
+    q0 = _true_offset_point(p0, cub, 0.0, width)
+    q13 = _true_offset_point(p0, cub, 1.0 / 3.0, width)
+    q23 = _true_offset_point(p0, cub, 2.0 / 3.0, width)
+    q3 = _true_offset_point(p0, cub, 1.0, width)
+    # (4/9) P1 + (2/9) P2 = q13 - (8/27) q0 - (1/27) q3
+    # (2/9) P1 + (4/9) P2 = q23 - (1/27) q0 - (8/27) q3
+    r1 = vsub(q13, vadd(vmul(q0, 8.0 / 27.0), vmul(q3, 1.0 / 27.0)))
+    r2 = vsub(q23, vadd(vmul(q0, 1.0 / 27.0), vmul(q3, 8.0 / 27.0)))
+    # 4 a + 2 b = 9 r1 ; 2 a + 4 b = 9 r2  =>  a = (6 r1 - 3 r2)/2 ? 
+    # 4a+2b=9r1, 2a+4b=9r2.  2*(first)-(second): 6a = 18 r1 - 9 r2 => a = 3 r1 - 1.5 r2
+    # first-2*a wait: from 2*(eq2)-eq1: 6b = 18 r2 - 9 r1 => b = 3 r2 - 1.5 r1
+    q1 = vsub(vmul(r1, 3.0), vmul(r2, 1.5))
+    q2 = vsub(vmul(r2, 3.0), vmul(r1, 1.5))
+    return q0, q1, q2, q3
+
+
 def rec_std_cubic_to(dest, p0, cub, tol, width, lev, t_st, t_en, piece):
-    st_pos, st_tgt, st_tle, st_rad = tangent_on_cub_at(0.0, p0, cub, False)
-    mi_pos, mi_tgt, mi_tle, mi_rad = tangent_on_cub_at(0.5, p0, cub, False)
-    en_pos, en_tgt, en_tle, en_rad = tangent_on_cub_at(1.0, p0, cub, True)
-    st_nor, mi_nor, en_nor = cw(st_tgt), cw(mi_tgt), cw(en_tgt)
-
-    def gue(rad, tle):
-        g = 1.0
-        if abs(rad) > 0.01:
-            g += width / rad
-        return g * tle
-
-    st_g, mi_g, en_g = gue(st_rad, st_tle), gue(mi_rad, mi_tle), gue(en_rad, en_tle)
-
-    def emit():
-        dest.cubic_to(
-            vadd(en_pos, vmul(en_nor, width)),
-            vmul(st_tgt, st_g),
-            vmul(en_tgt, en_g),
-        )
+    q0, q1, q2, q3 = _fit_offset_cubic(p0, cub, width)
+    err = 0.0
+    for t in (1.0 / 6.0, 2.0 / 6.0, 3.0 / 6.0, 4.0 / 6.0, 5.0 / 6.0):
+        err = max(err, vlen2(vsub(_bez4(q0, q1, q2, q3, t),
+                                  _true_offset_point(p0, cub, t, width))))
+    # Split if the interpolating cubic wanders more than 0.05 from the
+    # true offset.  The Livarot 0.0025*w^2 budget (~0.4 units at w=8)
+    # left a visible halo against Inkscape.
+    if lev <= 0 or err <= min(tol, 0.05 * 0.05):
+        dest.cubic_to(q3, vmul(vsub(q1, q0), 3), vmul(vsub(q3, q2), 3))
         dest.cmds[-1]._piece = piece
         dest.cmds[-1]._t_st = t_st
         dest.cmds[-1]._t_en = t_en
-
-    if lev <= 0:
-        emit()
         return
 
-    req = vadd(mi_pos, vmul(mi_nor, width))
-    trial = CubicTo(
-        vadd(en_pos, vmul(en_nor, width)),
-        vmul(st_tgt, st_g),
-        vmul(en_tgt, en_g),
-    )
-    chk, _, _, _ = tangent_on_cub_at(
-        0.5, vadd(st_pos, vmul(st_nor, width)), trial, False
-    )
-    err = vlen2(vsub(req, chk))
-    if err <= tol:
-        emit()
-        return
-
+    _st, st_tgt, st_tle, _ = tangent_on_cub_at(0.0, p0, cub, False)
+    mi_pos, mi_tgt, mi_tle, _ = tangent_on_cub_at(0.5, p0, cub, False)
+    _en, en_tgt, en_tle, _ = tangent_on_cub_at(1.0, p0, cub, True)
     left = CubicTo(mi_pos, vmul(st_tgt, 0.5 * st_tle), vmul(mi_tgt, 0.5 * mi_tle))
     right = CubicTo(cub.p, vmul(mi_tgt, 0.5 * mi_tle), vmul(en_tgt, 0.5 * en_tle))
     mid_t = 0.5 * (t_st + t_en)
