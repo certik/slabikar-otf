@@ -1398,6 +1398,40 @@ def merge_connected_contours(contours, eps=1e-3):
     return out
 
 
+def _linearize_straight_cubics(path: Path, thresh=1.0):
+    """Inkscape ConvertWithBackData(1.0): a cubic whose handles stay
+    within `thresh` of the chord is stored as a line."""
+    out = Path()
+    cur = None
+    for cmd in path.cmds:
+        if isinstance(cmd, MoveTo):
+            cur = cmd.p
+            out.move_to(cmd.p)
+        elif isinstance(cmd, Close):
+            out.close()
+        elif isinstance(cmd, LineTo):
+            out.line_to(cmd.p)
+            cur = cmd.p
+        elif isinstance(cmd, CubicTo):
+            if cur is None:
+                continue
+            se = vsub(cmd.p, cur)
+            sl2 = vlen2(se)
+            if sl2 < 1e-8:
+                straight = vlen2(cmd.start) < thresh and vlen2(cmd.end) < thresh
+            else:
+                sl = sl2 ** 0.5
+                y1 = abs(vcross(cmd.start, se)) / sl
+                y2 = abs(vcross(cmd.end, se)) / sl
+                straight = y1 < thresh and y2 < thresh
+            if straight:
+                out.line_to(cmd.p)
+            else:
+                out.cubic_to(cmd.p, cmd.start, cmd.end)
+            cur = cmd.p
+    return out
+
+
 def _drop_collapsed(path: Path, eps):
     """Remove offset cubics/lines that have collapsed to a point (inner
     offset of a loop whose radius is <= the pen radius)."""
@@ -1515,6 +1549,7 @@ def stroke_to_path(contours, stroke_width, join="miter", cap="butt",
     outlined = outline_path(src, width, join, cap, miter)
     if not outlined.cmds:
         return []
+    outlined = _linearize_straight_cubics(outlined, thresh=1.0)
     outlined = _drop_collapsed(outlined, eps=max(0.2, 0.02 * width))
     out = outlined_path_to_glif(outlined)
     # Collapsed inner offset of a small loop is a tiny inverted ring.
