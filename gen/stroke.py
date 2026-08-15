@@ -1413,10 +1413,12 @@ def outlined_path_to_glif(path: Path):
         if not segs:
             start = prev = None
             return
-        last_kind = segs[-1][0]
-        first_type = "curve" if last_kind == "C" else "line"
+        last = segs[-1]
+        last_end = last[1] if last[0] == "L" else last[3]
+        closes_with_curve = last[0] == "C" and veq(last_end, start, 1e-4)
+        first_type = "curve" if closes_with_curve else "line"
         pts = [Point(x=start[0], y=start[1], type=first_type, smooth=False)]
-        body = segs[:-1] if last_kind == "C" else segs
+        body = segs[:-1] if closes_with_curve else segs
         for s in body:
             if s[0] == "L":
                 if not veq((pts[-1].x, pts[-1].y), s[1], 1e-8):
@@ -1425,10 +1427,9 @@ def outlined_path_to_glif(path: Path):
                 pts.append(Point(x=s[1][0], y=s[1][1], type="offcurve", smooth=False))
                 pts.append(Point(x=s[2][0], y=s[2][1], type="offcurve", smooth=False))
                 pts.append(Point(x=s[3][0], y=s[3][1], type="curve", smooth=False))
-        if last_kind == "C":
-            s = segs[-1]
-            pts.append(Point(x=s[1][0], y=s[1][1], type="offcurve", smooth=False))
-            pts.append(Point(x=s[2][0], y=s[2][1], type="offcurve", smooth=False))
+        if closes_with_curve:
+            pts.append(Point(x=last[1][0], y=last[1][1], type="offcurve", smooth=False))
+            pts.append(Point(x=last[2][0], y=last[2][1], type="offcurve", smooth=False))
         if len(pts) >= 2:
             verify_contour(pts)
             contours.append(pts)

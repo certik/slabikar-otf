@@ -82,6 +82,24 @@ def test_cubic():
     print("ok cubic", a, [len(k) for k in out])
 
 
+def test_straight_cubic_keeps_four_corners():
+    """A straight cubic must outline to a parallelogram, not a wedge."""
+    c = [
+        Point(x=0, y=0, type="move", smooth=False),
+        Point(x=50, y=60, type="offcurve", smooth=False),
+        Point(x=100, y=120, type="offcurve", smooth=False),
+        Point(x=150, y=180, type="curve", smooth=False),
+    ]
+    out = stroke_to_path([c], 16.0)
+    assert len(out) == 1
+    ons = [(p.x, p.y) for p in out[0] if p.type != "offcurve"]
+    assert len(ons) == 4, ons
+    xs, ys = zip(*ons)
+    assert min(xs) < 0 < max(xs)
+    assert min(ys) < 0 < max(ys)
+    print("ok straight cubic 4 corners", ons)
+
+
 def test_joined_collinear_strokes():
     """Body + connector that share an endpoint must become one tube."""
     a = line_contour((0, 0), (50, 0))
@@ -118,6 +136,7 @@ if __name__ == "__main__":
     test_vertical_line()
     test_two_segments_miter()
     test_cubic()
+    test_straight_cubic_keeps_four_corners()
     test_joined_collinear_strokes()
     test_closed_diamond_dot()
     print("all ok")
