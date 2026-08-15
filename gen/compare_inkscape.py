@@ -197,10 +197,7 @@ def main():
         diff = int(xor.sum())
         ratio = diff / max(ink_px, 1)
         rows.append((ratio, diff, ink_px, our_px, name))
-        # Sub-pixel offset-curve / flatten differences show up as a 1px
-        # halo (~1–2% xor).  Treat that as a match; larger holes or
-        # missing corners are above this.
-        if ratio > 0.025:
+        if ratio > 0.005:
             fail += 1
             xor_im = Image.fromarray(np.where(xor, 0, 255).astype(np.uint8))
             side = Image.new("L", (a.shape[1] * 3 + 8, a.shape[0]), 255)
@@ -214,9 +211,19 @@ def main():
     for ratio, diff, ink_px, our_px, name in rows[:30]:
         print(f"{name:20} {ratio:8.4f} {diff:7d} {ink_px:7d} {our_px:7d}")
     print(f"... {len(rows)} glyphs")
-    n_ok = sum(1 for r, *_ in rows if r <= 0.025)
-    print(f"\nmatch (xor/ink <= 2.5%): {n_ok}/{len(rows)}")
-    print(f"above threshold: {fail}")
+    ratios = [r for r, *_ in rows]
+    n = len(rows)
+    n_ok = sum(1 for r in ratios if r <= 0.005)
+    asc = sorted(ratios)
+    med = asc[n // 2] if n else 0.0
+    p90 = asc[int(0.9 * (n - 1))] if n else 0.0
+    max_r, _, _, _, max_name = rows[0] if rows else (0, 0, 0, 0, "")
+    print(f"\ncompared: {n}")
+    print(f"<=0.5%: {n_ok}/{n}")
+    print(f"median: {med:.4f}")
+    print(f"p90: {p90:.4f}")
+    print(f"max: {max_name} {max_r:.4f}")
+    print(f"above 0.5%: {fail}")
     if fail:
         print(f"diff images in {work / 'diff'}")
     return 0 if fail == 0 else 1

@@ -413,7 +413,10 @@ def outline_join(dest, pos, st_nor, en_nor, width, join, miter, ntype):
     if abs(ang_si) < 1e-7 and ang_co > 0:
         return
 
-    inside = (ang_si > 0 and width >= 0) or (ang_si < 0 and width < 0)
+    # Livarot uses this test in Y-down.  We offset in Y-up with the same
+    # cw() normal, so the sign of the normal cross is flipped: a positive
+    # cross is an *outside* corner here (e.g. the tip of '>').
+    inside = (ang_si < 0 and width >= 0) or (ang_si > 0 and width < 0)
     if inside or (ang_si == 0 and _join_turn_inside):
         if dest.cmds and isinstance(dest.cmds[-1], LineTo) and ntype == "line":
             diff = vsub(st_nor, en_nor)
