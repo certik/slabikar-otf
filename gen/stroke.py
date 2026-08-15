@@ -668,6 +668,16 @@ def outline_path(src: Path, width, join, cap, miter):
         rev, need_close = reverse_subpath(sub)
         if not rev.cmds:
             continue
+        # Open loops that return to the start (dots) are closed in SVG
+        # only if they have Z.  Ours start with "move", so treat start≈end
+        # as closed: inner+outer rings, no butt-cap slit.  Matches
+        # Inkscape flatten of a circular pen on a small cycle.
+        if not need_close:
+            p_s = prev_point(sub, 0)
+            p_e = prev_point(sub, len(sub) - 1)
+            if veq(p_s, p_e, 1e-4):
+                need_close = True
+                rev.close()
         if need_close:
             sub_contract_outline(rev.cmds, dest, tol, width, join, miter, True, False)
             sub_contract_outline(sub, dest, tol, width, join, miter, True, False)
@@ -1506,4 +1516,19 @@ def stroke_to_path(contours, stroke_width, join="miter", cap="butt",
     if not outlined.cmds:
         return []
     outlined = _drop_collapsed(outlined, eps=max(0.2, 0.02 * width))
-    return outlined_path_to_glif(outlined)
+    out = outlined_path_to_glif(outlined)
+    # Collapsed inner offset of a small loop is a tiny inverted ring.
+    # Inkscape's flatten discards it; keep only contours with real area.
+    min_area = (abs(width) * 2) ** 2 * 0.5
+    kept = []
+    for c in out:
+        on = [(p.x, p.y) for p in c if p.type != "offcurve"]
+        a = 0.0
+        n = len(on)
+        for i in range(n):
+            x1, y1 = on[i]
+            x2, y2 = on[(i + 1) % n]
+            a += x1 * y2 - x2 * y1
+        if abs(a) * 0.5 >= min_area:
+            kept.append(c)
+    return kept if kept else out
