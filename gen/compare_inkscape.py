@@ -22,7 +22,7 @@ def load_glyphs():
     return ns["_chars"], float(ns["stroke_width"])
 
 
-def flatten_cubic(p0, p1, p2, p3, n=16):
+def flatten_cubic(p0, p1, p2, p3, n=32):
     pts = []
     for i in range(n + 1):
         t = i / n
