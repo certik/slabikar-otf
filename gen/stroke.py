@@ -1451,8 +1451,6 @@ def convert_to_forme(outlined: Path, thresh=1.0):
         return raw
     if len(merged) > len(raw) + 2:
         return raw
-    if len(merged) > 1 and not _holes_nested(merged):
-        return raw
     # ConvertToShape of a sausage must keep the same filled region.
     # Filling a letter counter (nine, s) makes a large xor vs the raw outline.
     if raw and _filled_xor_ratio(raw, merged) > 0.03:
@@ -1737,6 +1735,8 @@ def stroke_to_path(contours, stroke_width, join="miter", cap="butt",
             x1, y1 = on[i]
             x2, y2 = on[(i + 1) % n]
             a += x1 * y2 - x2 * y1
-        if abs(a) * 0.5 >= min_area:
+        # Keep holes even when small — they are ConvertToShape counters.
+        # Drop only tiny positive scraps (collapsed inner rings).
+        if a < 0 or abs(a) * 0.5 >= min_area:
             kept.append(c)
     return kept if kept else out
