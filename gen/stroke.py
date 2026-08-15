@@ -1306,6 +1306,67 @@ def glif_to_path(contours) -> Path:
 # Public API
 # ---------------------------------------------------------------------------
 
+def _oncurves(contour):
+    return [p for p in contour if p.type != "offcurve"]
+
+
+def _is_closed_loop(contour, eps):
+    """True if the centerline returns to its start (a dot, a ring)."""
+    on = _oncurves(contour)
+    if len(on) < 3:
+        return False
+    return veq((on[0].x, on[0].y), (on[-1].x, on[-1].y), eps)
+
+
+def _copy_contour(contour):
+    return [Point(x=p.x, y=p.y, type=p.type, smooth=p.smooth) for p in contour]
+
+
+def merge_connected_contours(contours, eps=1e-3):
+    """Join open centerlines that meet end-to-start into one path.
+
+    Metafont draws the letter body and then `dotah` as a second `draw`.
+    Those two strokes share an endpoint, so outlining them separately
+    puts two butt caps on top of each other.  Stitching first makes a
+    single tube.  Closed loops (dots) are left alone.
+    """
+    remaining = [_copy_contour(c) for c in contours if c]
+    out = []
+    while remaining:
+        cur = remaining.pop(0)
+        if _is_closed_loop(cur, eps):
+            out.append(cur)
+            continue
+        progressed = True
+        while progressed:
+            progressed = False
+            on = _oncurves(cur)
+            if not on:
+                break
+            start = (on[0].x, on[0].y)
+            end = (on[-1].x, on[-1].y)
+            for i, other in enumerate(remaining):
+                if _is_closed_loop(other, eps):
+                    continue
+                oon = _oncurves(other)
+                if not oon:
+                    continue
+                o0 = (oon[0].x, oon[0].y)
+                o1 = (oon[-1].x, oon[-1].y)
+                if veq(end, o0, eps):
+                    cur = cur + other[1:]
+                    remaining.pop(i)
+                    progressed = True
+                    break
+                if veq(start, o1, eps):
+                    cur = other + cur[1:]
+                    remaining.pop(i)
+                    progressed = True
+                    break
+        out.append(cur)
+    return out
+
+
 def _drop_collapsed(path: Path, eps):
     """Remove offset cubics/lines that have collapsed to a point (inner
     offset of a loop whose radius is <= the pen radius)."""
@@ -1404,15 +1465,16 @@ def stroke_to_path(contours, stroke_width, join="miter", cap="butt",
     `contours` is a list of glif point lists (Y up).  `stroke_width` is the
     full SVG stroke-width (offset distance is half of that).
 
-    Self-overlapping outlines are left as-is; the font's nonzero fill rule
-    (and checkoutlinesufo later in the build) resolves them, matching
-    Livarot's flatten in visual effect.
+    Centerlines that meet end-to-start (letter body + connector) are
+    stitched into one path before offsetting, so they do not produce
+    overlapping tubes.
     """
     if stroke_width <= 0 or not contours:
         return []
     global _join_prev_pos, _join_turn_inside
     _join_prev_pos = (0.0, 0.0)
     _join_turn_inside = True
+    contours = merge_connected_contours(contours)
     src = glif_to_path(contours)
     if len(src.cmds) <= 1:
         return []

@@ -82,6 +82,19 @@ def test_cubic():
     print("ok cubic", a, [len(k) for k in out])
 
 
+def test_joined_collinear_strokes():
+    """Body + connector that share an endpoint must become one tube."""
+    a = line_contour((0, 0), (50, 0))
+    b = line_contour((50, 0), (100, 0))
+    out = stroke_to_path([a, b], 10.0)
+    assert len(out) == 1, [len(c) for c in out]
+    xmin, ymin, xmax, ymax = bbox(out[0])
+    assert abs(xmin - 0) < 0.2 and abs(xmax - 100) < 0.2, (xmin, xmax)
+    assert abs(ymin - (-5)) < 0.2 and abs(ymax - 5) < 0.2
+    assert abs(abs(signed_area(out[0])) - 1000) < 20
+    print("ok joined collinear", signed_area(out[0]), (xmin, ymin, xmax, ymax))
+
+
 def test_closed_diamond_dot():
     # like svg.py's `dot`: a small closed-looking loop (open, returns to start)
     e = 4.0
@@ -105,5 +118,6 @@ if __name__ == "__main__":
     test_vertical_line()
     test_two_segments_miter()
     test_cubic()
+    test_joined_collinear_strokes()
     test_closed_diamond_dot()
     print("all ok")
