@@ -14,9 +14,10 @@ has some implicit tangents, so we have estimated those by trial and error by
 hand. In the future we could implement the Metafont's algorithm for tangents as
 well.
 
-The generated SVG files contain the path of the cursive font. The files are
-then processed using Inkscape to produce outlines. We read them in, and convert
-to the UFO glif format, which is then used to construct the OTF font.
+The generated paths are the pen-centerlines of the cursive font.  They are
+expanded to filled outlines by a Python port of Inkscape/Livarot's
+stroke-to-path (see stroke.py) and written as UFO glif files, which are then
+used to construct the OTF font.
 
 
 
@@ -56,7 +57,8 @@ import os
 from bezier import compute_control_points
 from math import sin, cos, pi
 from numpy import array
-from glif import Glif, verify, glif2svg, Point
+from glif import Glif, verify, glif2glif, Point
+from stroke import stroke_to_path
 
 def shift(contour, s):
     p = []
@@ -123,11 +125,11 @@ def create_glif(contours, w, scale):
     verify(g)
     return g
 
+_chars = []
+
 def add_char(charname, width, contours):
     g = create_glif(contours, width, scale)
-    f = open(f'letter_{charname}.svg', 'w')
-    f.write(glif2svg(g, False, False, stroke_width))
-    f.close()
+    _chars.append((charname, g))
 
 def whatever_y(z0, vec, zy):
     """
@@ -2192,19 +2194,20 @@ def fix_name(x):
         x = "_" + x[1:]
     return x
 
-letters = [fix_name(x) for x in glyphs]
-
-current_dir = os.path.dirname(os.path.abspath(__file__))
 glyphs_dir = "../font.ufo/glyphs"
 run(f"mkdir -p {glyphs_dir}")
-s = ""
-for letter in letters:
-    s += f"file-open:letter_{letter}.svg; select-by-id: path0; object-stroke-to-path; export-type:svg; export-do\n"
-open("commands.txt", "w").write(s)
-run("inkscape --shell < commands.txt")
-for letter in letters:
-    run(f"python svg2glif.py letter_{letter}_out.svg")
-    run(f"cp letter_{letter}_out_out3.glif {glyphs_dir}/{letter}.glif")
+
+by_name = {name: g for name, g in _chars}
+for name in glyphs:
+    letter = fix_name(name)
+    g = by_name.get(letter)
+    if g is None:
+        raise Exception(f"No outline defined for glyph {name}")
+    g.name = name
+    g.contours = stroke_to_path(g.contours, stroke_width)
+    verify(g)
+    open(f"{glyphs_dir}/{letter}.glif", "w").write(glif2glif(g))
+print(f"Wrote {len(glyphs)} outlined glyphs to {glyphs_dir}")
 
 s = """\
 <?xml version="1.0" encoding="UTF-8"?>
