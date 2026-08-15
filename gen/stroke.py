@@ -1419,14 +1419,27 @@ def _filled_xor_ratio(a_contours, b_contours):
     return len(fa.symmetric_difference(fb)) / max(len(fa), 1)
 
 
+def _forme_ok(raw, merged):
+    if not merged:
+        return False
+    raw_n = _net_area(raw)
+    mer_n = _net_area(merged)
+    if raw_n > 1.0 and (mer_n > 1.08 * raw_n or mer_n < 0.92 * raw_n):
+        return False
+    if len(merged) < len(raw) or len(merged) > len(raw) + 2:
+        return False
+    if raw and _filled_xor_ratio(raw, merged) > 0.03:
+        return False
+    return True
+
+
 def convert_to_forme(outlined: Path, thresh=1.0):
     """ConvertWithBackData + ConvertToShape + ConvertToForme.
 
-    A correct union barely changes net filled area (nonzero of the raw
-    outline already fills overlaps).  A bad winding walk fills counters
-    or drops components; reject those and keep ReFormeCubicTo of the
-    flattened outline.  Extra contours are the holes ConvertToShape
-    punches at self-overlaps — allow at most two more than the raw.
+    A correct union barely changes net filled area.  Letter+accent
+    pairs are disjoint strokes: if the combined arrangement is rejected,
+    union each outline loop on its own (Inkscape's Fill of disjoint
+    components does not interact).
     """
     loops = path_to_polylines(outlined, thresh)
     if not loops:
@@ -1437,25 +1450,23 @@ def convert_to_forme(outlined: Path, thresh=1.0):
         pieces,
     )
     cycles = flatten_positive(loops)
-    if not cycles:
-        return raw
-    merged = cycles_to_glif(cycles, pieces)
-    if not merged:
-        return raw
-    raw_n = _net_area(raw)
-    mer_n = _net_area(merged)
-    if raw_n > 1.0 and (mer_n > 1.08 * raw_n or mer_n < 0.92 * raw_n):
-        return raw
-    # Do not drop a whole stroke (accent, second quote, …).
-    if len(merged) < len(raw):
-        return raw
-    if len(merged) > len(raw) + 2:
-        return raw
-    # ConvertToShape of a sausage must keep the same filled region.
-    # Filling a letter counter (nine, s) makes a large xor vs the raw outline.
-    if raw and _filled_xor_ratio(raw, merged) > 0.03:
-        return raw
-    return merged
+    merged = cycles_to_glif(cycles, pieces) if cycles else []
+    if _forme_ok(raw, merged):
+        return merged
+    if len(loops) > 1:
+        parts = []
+        part_raw = []
+        for lp in loops:
+            pr = cycles_to_glif([c for c in [_poly_loop_to_cycle(lp)] if len(c) >= 3], pieces)
+            part_raw.extend(pr)
+            pc = flatten_positive([lp])
+            pm = cycles_to_glif(pc, pieces) if pc else []
+            parts.extend(pm if _forme_ok(pr, pm) else pr)
+        if parts and (
+            not part_raw or _filled_xor_ratio(part_raw, parts) <= 0.03
+        ):
+            return parts
+    return raw
 
 
 # ---------------------------------------------------------------------------
