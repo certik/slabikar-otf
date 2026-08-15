@@ -419,10 +419,12 @@ def outline_join(dest, pos, st_nor, en_nor, width, join, miter, ntype):
     inside = (ang_si < 0 and width >= 0) or (ang_si > 0 and width < 0)
     if inside or (ang_si == 0 and _join_turn_inside):
         if dest.cmds and isinstance(dest.cmds[-1], LineTo) and ntype == "line":
+            # Intersection of the two offset lines — same point Inkscape
+            # keeps after flatten, for both acute and obtuse inside corners.
             diff = vsub(st_nor, en_nor)
             biss = vunit(rot90(diff))
             c2 = vdot(biss, en_nor)
-            if abs(c2) > math.sqrt(0.5):
+            if abs(c2) > 1e-12:
                 dest.cmds[-1].p = vadd(pos, vmul(biss, width / c2))
             else:
                 dest.line_to(vadd(pos, vmul(en_nor, width)))
