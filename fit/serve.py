@@ -48,7 +48,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.send_error(500, str(e))
 
     def log_message(self, fmt, *args):
-        if "POST /save" in (args[0] if args else ""):
+        # The base class also calls this for errors (log_error), where args[0]
+        # is the status code, not a request line; only check strings.
+        if args and isinstance(args[0], str) and "POST /save" in args[0]:
             print("saved fit/letters.json")
 
 
