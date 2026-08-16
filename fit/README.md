@@ -8,6 +8,8 @@ Bezier curves on top of the image; each letter has its own placement
 ## Run
 
     python3 fit/serve.py
+    # or, with pixi:
+    pixi run serve
     # open http://localhost:8477/fit/
 
 Edits are autosaved into `fit/letters.json` (the server writes the file; a

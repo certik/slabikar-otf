@@ -1,0 +1,10 @@
+[workspace]
+name = "slabikar-otf"
+channels = ["conda-forge"]
+platforms = ["osx-arm64", "linux-64"]
+
+[dependencies]
+python = ">=3.10"
+
+[tasks]
+serve = { cmd = "python fit/serve.py", description = "Serve the template-fitting UI at http://localhost:8477/fit/" }
