@@ -251,12 +251,17 @@ function renderGlyphs() {
     });
 }
 
-function arrow(parent, from, to, auto, extraClass) {
-    const cls = auto ? " auto" : "";
-    el("line", { class: "dir-arrow" + cls + (extraClass || ""),
-                 x1: from[0], y1: from[1], x2: to[0], y2: to[1] }, parent);
-    return el("circle", { class: "dir-tip" + cls,
-                          cx: to[0], cy: to[1], r: 4 * pxSize() }, parent);
+// A traditional handle: a thin line from `from` to `to` with a round grip at
+// the far end.  Returns the group, which carries the pointer handlers (the
+// grip has an invisible, generously sized hit circle on top of it).
+function dirHandle(parent, from, to, auto) {
+    const px = pxSize();
+    const g = el("g", { class: "dir-handle" + (auto ? " auto" : "") }, parent);
+    el("line", { class: "dir-arrow", x1: from[0], y1: from[1],
+                 x2: to[0], y2: to[1] }, g);
+    el("circle", { class: "dir-tip", cx: to[0], cy: to[1], r: 3.5 * px }, g);
+    el("circle", { class: "grab-area", cx: to[0], cy: to[1], r: 9 * px }, g);
+    return g;
 }
 
 function renderEditor() {
@@ -278,8 +283,7 @@ function renderEditor() {
         const m = 8 * px;
         bb = [bb[0]-m, bb[1]-m, bb[2]+m, bb[3]+m];
         const bbr = el("rect", { class: "bbox", x: bb[0], y: bb[1],
-                     width: bb[2]-bb[0], height: bb[3]-bb[1],
-                     "stroke-width": px }, editorG);
+                     width: bb[2]-bb[0], height: bb[3]-bb[1] }, editorG);
         // dragging anywhere inside the box (not on a control) moves the letter
         bbr.addEventListener("pointerdown", ev => {
             ev.stopPropagation();
@@ -288,15 +292,14 @@ function renderEditor() {
         });
         const hs = 5 * px;
         const sh = el("rect", { class: "scale-handle",
-            x: bb[2]-hs, y: bb[3]-hs, width: 2*hs, height: 2*hs,
-            "stroke-width": px }, editorG);
+            x: bb[2]-hs, y: bb[3]-hs, width: 2*hs, height: 2*hs }, editorG);
         sh.addEventListener("pointerdown", ev => {
             ev.stopPropagation();
             startDrag(ev, { type: "scale", entry: sel.entry,
                             t0: { ...e.transform } });
         });
         const o = [e.transform.tx, e.transform.ty];
-        el("path", { class: "origin", "stroke-width": px,
+        el("path", { class: "origin",
             d: `M ${o[0]-5*px} ${o[1]} H ${o[0]+5*px}` +
                ` M ${o[0]} ${o[1]-5*px} V ${o[1]+5*px}` }, editorG);
     }
@@ -345,7 +348,7 @@ function renderEditor() {
                 (isDefault ? " default" : "") + selCls }, editorG);
             const tw = (label.length * 6 + 8) * px, th = 13 * px;
             el("rect", { x: mid[0]-tw/2, y: mid[1]-th/2, width: tw,
-                         height: th, "stroke-width": px, rx: 3*px }, g);
+                         height: th, rx: 3*px }, g);
             const txt = el("text", { x: mid[0], y: mid[1] }, g);
             txt.textContent = label;
             txt.style.fontSize = (10 * px) + "px";
@@ -361,14 +364,15 @@ function renderEditor() {
             if (s[0] !== "curve") return;
             const p0 = e2i(e, s[1]), c1 = e2i(e, s[2]);
             const c2 = e2i(e, s[3]), p1 = e2i(e, s[4]);
-            el("line", { class: "ctrl-line", x1: p0[0], y1: p0[1],
-                         x2: c1[0], y2: c1[1], "stroke-width": px }, editorG);
-            el("line", { class: "ctrl-line", x1: p1[0], y1: p1[1],
-                         x2: c2[0], y2: c2[1], "stroke-width": px }, editorG);
-            for (const [which, P] of [["c1", c1], ["c2", c2]]) {
-                const cp = el("circle", { class: "ctrl-pt", cx: P[0],
-                    cy: P[1], r: 3.5 * px, "stroke-width": px }, editorG);
-                cp.addEventListener("pointerdown", ev => {
+            for (const [which, anchor, P] of [["c1", p0, c1], ["c2", p1, c2]]) {
+                const g = el("g", { class: "ctrl-handle" }, editorG);
+                el("line", { class: "ctrl-line", x1: anchor[0], y1: anchor[1],
+                             x2: P[0], y2: P[1] }, g);
+                el("circle", { class: "ctrl-pt", cx: P[0], cy: P[1],
+                               r: 3.5 * px }, g);
+                el("circle", { class: "grab-area", cx: P[0], cy: P[1],
+                               r: 9 * px }, g);
+                g.addEventListener("pointerdown", ev => {
                     ev.stopPropagation();
                     startDrag(ev, { type: "ctrl", entry: sel.entry, ci, si,
                                     which, solvedSeg: deepCopy(s) });
@@ -376,15 +380,22 @@ function renderEditor() {
             }
         });
 
-        // Direction arrows (metafont mode)
+        // Direction handles (metafont mode)
         if (mode === "metafont") c.knots.forEach((k, ki) => {
             const dirs = knotDirs(c, solved, ki);
             const K = e2i(e, [k.x, k.y]);
             const alen = 26 * px;
+            // Only the direction of a metafont handle matters, not its
+            // length: while one is being dragged show the circle it is
+            // constrained to.
+            if (drag && drag.type === "dir" && drag.entry === sel.entry &&
+                drag.ci === ci && drag.ki === ki && drag.moved)
+                el("circle", { class: "dir-circle", cx: K[0], cy: K[1],
+                               r: alen }, editorG);
             if (dirs.out != null) {
                 const a = -dirs.out * Math.PI / 180; // image y is flipped
                 const tip = [K[0] + alen*Math.cos(a), K[1] + alen*Math.sin(a)];
-                const t = arrow(editorG, K, tip, dirs.outAuto);
+                const t = dirHandle(editorG, K, tip, dirs.outAuto);
                 t.addEventListener("pointerdown", ev => {
                     ev.stopPropagation();
                     startDrag(ev, { type: "dir", entry: sel.entry, ci, ki,
@@ -400,7 +411,7 @@ function renderEditor() {
             if (dirs.inn != null) {
                 const a = -dirs.inn * Math.PI / 180;
                 const tail = [K[0] - alen*Math.cos(a), K[1] - alen*Math.sin(a)];
-                const t = arrow(editorG, K, tail, dirs.innAuto);
+                const t = dirHandle(editorG, K, tail, dirs.innAuto);
                 t.addEventListener("pointerdown", ev => {
                     ev.stopPropagation();
                     startDrag(ev, { type: "dir", entry: sel.entry, ci, ki,
@@ -421,8 +432,7 @@ function renderEditor() {
             const isSel = sel.knot && sel.knot.ci === ci && sel.knot.ki === ki;
             const cir = el("circle", {
                 class: "knot" + (isSel ? " selected" : ""),
-                cx: K[0], cy: K[1], r: 4.5 * px,
-                "stroke-width": 1.5 * px }, editorG);
+                cx: K[0], cy: K[1], r: 4.5 * px }, editorG);
             cir.addEventListener("pointerdown", ev => {
                 ev.stopPropagation();
                 sel.knot = { ci, ki }; sel.seg = null;
@@ -621,10 +631,12 @@ function renderInspector() {
 
     html(ins, "hr");
     html(ins, "div", "hint",
-        "Modes: M metafont, B bezier. Ghost arrows show the directions " +
+        "Modes: M metafont, B bezier. Ghost handles show the directions " +
         "Hobby's algorithm picked; drag one to pin it, double-click to " +
-        "make it automatic again. In bezier mode dragging a handle pins " +
-        "both directions and tensions of that segment.");
+        "make it automatic again. Metafont handles only carry a direction, " +
+        "so they ride the dashed circle shown while dragging. In bezier " +
+        "mode dragging a handle pins both directions and tensions of that " +
+        "segment.");
 }
 
 function normalizeTension(s) {
@@ -826,7 +838,8 @@ function handleDoubleClick(ev) {
     if (sel.entry < 0) return false;
     // controls have their own double-click behavior (or none)
     if (ev.target.closest &&
-        ev.target.closest(".dir-tip, .ctrl-pt, .knot, .tension-badge, .scale-handle"))
+        ev.target.closest(".dir-handle, .ctrl-handle, .knot, .tension-badge," +
+                          " .scale-handle"))
         return false;
     const e = data.entries[sel.entry];
     const P = screenToImage(ev);

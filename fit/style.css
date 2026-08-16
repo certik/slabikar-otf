@@ -72,22 +72,45 @@ body { display: flex; flex-direction: column; background: #2b2b2e; color: #ddd; 
 .glyph.selected path.stroke { stroke: #e07818; }
 .glyph.selected path.center { stroke: #7a3a00; }
 
+/* Overlay strokes are given in screen pixels: the viewBox is in image units,
+   so without this they would grow and shrink with the zoom level. */
+#editor .knot, #editor .dir-arrow, #editor .dir-tip, #editor .dir-circle,
+#editor .ctrl-line, #editor .ctrl-pt, #editor .tension-badge rect,
+#editor .bbox, #editor .scale-handle, #editor .origin {
+  vector-effect: non-scaling-stroke;
+}
+
 #editor .knot { fill: #fff; stroke: #d33682; stroke-width: 1.5; cursor: move; }
 #editor .knot.selected { fill: #ffd700; }
 #editor .knot.line-adjacent { stroke: #666; }
-#editor .dir-arrow { stroke: #d33682; stroke-width: 1.6; fill: none; pointer-events: none; }
-#editor .dir-tip { fill: #d33682; cursor: grab; }
-#editor .dir-arrow.auto { stroke: #d33682; stroke-opacity: 0.35; stroke-dasharray: 3 3; }
-#editor .dir-tip.auto { fill: #d33682; fill-opacity: 0.35; }
+
+/* Handles: a hairline from the anchor point to a small round grip.  The grip
+   carries an oversized transparent hit area so it stays easy to grab. */
+#editor .grab-area { fill: transparent; stroke: none; }
+#editor .dir-handle, #editor .ctrl-handle { cursor: grab; }
+#editor .dir-arrow { stroke: #d33682; stroke-width: 1; fill: none;
+  pointer-events: none; }
+#editor .dir-tip { fill: #d33682; stroke: #fff; stroke-width: 1;
+  pointer-events: none; }
+#editor .dir-handle.auto .dir-arrow { stroke-opacity: 0.35; stroke-dasharray: 3 3; }
+#editor .dir-handle.auto .dir-tip { fill-opacity: 0.35; stroke-opacity: 0.35; }
+/* A metafont handle carries only a direction, so dragging one is really a
+   move along this circle. */
+#editor .dir-circle { fill: none; stroke: #ff6fb0; stroke-opacity: 0.8;
+  stroke-width: 1; stroke-dasharray: 3 3; pointer-events: none; }
 #editor .ctrl-line { stroke: #999; stroke-width: 1; pointer-events: none; }
-#editor .ctrl-pt { fill: #2aa198; stroke: #fff; stroke-width: 1; cursor: grab; }
+#editor .ctrl-pt { fill: #2aa198; stroke: #fff; stroke-width: 1;
+  pointer-events: none; }
+
 #editor .tension-badge { cursor: pointer; }
-#editor .tension-badge rect { fill: #1d1d20; fill-opacity: 0.85; stroke: #666; rx: 3; }
+#editor .tension-badge rect { fill: #1d1d20; fill-opacity: 0.85; stroke: #666;
+  stroke-width: 1; rx: 3; }
 #editor .tension-badge.selected rect { stroke: #ffd700; }
 #editor .tension-badge text { fill: #eee; font-size: 10px; text-anchor: middle;
   dominant-baseline: central; user-select: none; }
 #editor .tension-badge.default text { fill: #999; }
 #editor .bbox { fill: transparent; pointer-events: all; cursor: move;
-  stroke: #e07818; stroke-opacity: 0.5; stroke-dasharray: 4 3; }
-#editor .scale-handle { fill: #e07818; stroke: #fff; stroke-width: 1; cursor: nwse-resize; }
+  stroke: #e07818; stroke-opacity: 0.5; stroke-width: 1; stroke-dasharray: 4 3; }
+#editor .scale-handle { fill: #e07818; stroke: #fff; stroke-width: 1;
+  cursor: nwse-resize; }
 #editor .origin { fill: none; stroke: #e07818; stroke-width: 1; }
